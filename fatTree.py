@@ -2,6 +2,7 @@ from mininet.topo import Topo
 from mininet.net import Mininet
 from mininet.node import RemoteController, OVSKernelSwitch
 from mininet.cli import CLI
+from mininet.link import TCLink
 import logging
 
 logging.basicConfig(filename='./fattree.log', level=logging.DEBUG)
@@ -17,25 +18,19 @@ class FatTree(Topo):
     def __init__(self, k):
         "Create Fat Tree topo."
         self.pod = k
-        self.iCoreLayerSwitch = int((k/2)**2)
-        self.iAggLayerSwitch = int(k*k/2)
-        self.iEdgeLayerSwitch = int(k*k/2)
-        self.density = int(k/2)
+        self.iCoreLayerSwitch = int((k / 2) ** 2)
+        self.iAggLayerSwitch = int(k * k / 2)
+        self.iEdgeLayerSwitch = int(k * k / 2)
+        self.density = int(k / 2)
         self.iHost = int(self.iEdgeLayerSwitch * self.density)
         
-        self.bw_c2a = 0.2
-        self.bw_a2e = 0.1
-        self.bw_h2a = 0.05
-
         # Initialize topology
         Topo.__init__(self)
   
         self.createTopo()
         logger.debug("Finished topology creation!")
 
-        self.createLink(bw_c2a=self.bw_c2a, 
-                        bw_a2e=self.bw_a2e, 
-                        bw_h2a=self.bw_h2a)
+        self.createLink()
         logger.debug("Finished adding links!")
     
     def createTopo(self):
@@ -69,24 +64,24 @@ class FatTree(Topo):
             host = self.addHost(PREFIX + str(x))
             self.HostList.append(host)
 
-    def createLink(self, bw_c2a=0.2, bw_a2e=0.1, bw_h2a=0.5):
+    def createLink(self):
         logger.debug("Add link Core to Agg.")
         end = int(self.pod / 2)
         for x in range(0, self.iAggLayerSwitch, end):
             for i in range(end):
                 for j in range(end):
-                    self.addLink(self.CoreSwitchList[i * end + j], self.AggSwitchList[x + i], bw=bw_c2a)
+                    self.addLink(self.CoreSwitchList[i * end + j], self.AggSwitchList[x + i], cls=TCLink)
 
         logger.debug("Add link Agg to Edge.")
         for x in range(0, self.iAggLayerSwitch, end):
             for i in range(end):
                 for j in range(end):
-                    self.addLink(self.AggSwitchList[x + i], self.EdgeSwitchList[x + j], bw=bw_a2e)
+                    self.addLink(self.AggSwitchList[x + i], self.EdgeSwitchList[x + j], cls=TCLink)
 
         logger.debug("Add link Edge to Host.")
         for x in range(self.iEdgeLayerSwitch):
             for i in range(self.density):
-                self.addLink(self.EdgeSwitchList[x], self.HostList[self.density * x + i], bw=bw_h2a)
+                self.addLink(self.EdgeSwitchList[x], self.HostList[self.density * x + i], cls=TCLink)
 
 def run():
     ONOS_IP = '172.17.0.5'  # Replace with your ONOS controller IP
@@ -94,7 +89,7 @@ def run():
 
     topo = FatTree(k=4)  # Adjust k value as needed
     onos_controller = RemoteController('onos', ip=ONOS_IP, port=ONOS_PORT)
-    net = Mininet(topo=topo, controller=onos_controller, switch=OVSKernelSwitch, autoSetMacs=True)
+    net = Mininet(topo=topo, controller=onos_controller, switch=OVSKernelSwitch, link=TCLink, autoSetMacs=True)
 
     net.start()
     CLI(net)
