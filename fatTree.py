@@ -8,47 +8,54 @@ class FatTreeTopo(Topo):
     def __init__(self, k=4):
         super(FatTreeTopo, self).__init__()
 
-        # k must be an even number
+        # Ensure k is even, as required by the FatTree topology
         if k % 2 != 0:
             raise ValueError("k must be even")
 
-        # Layer counts
+        # Number of switches and hosts in each layer
         core_switches = (k // 2) ** 2
         agg_switches = (k // 2) * k
         edge_switches = (k // 2) * k
         hosts = (k ** 3) // 4
 
-        # Create core layer switches
+        # Core switches list
         core = []
         for i in range(core_switches):
             core_sw = self.addSwitch('c{}'.format(i + 1))
             core.append(core_sw)
 
-        # Create aggregation and edge layer switches
+        # Aggregation and edge switches in pods
         agg = []
         edge = []
         for pod in range(k):
             agg_pod = []
             edge_pod = []
             for i in range(k // 2):
-                agg_sw = self.addSwitch('a{}'.format(pod * (k // 2) + i + 1))
+                # Aggregation switch
+                agg_sw = self.addSwitch('a{}_{}'.format(pod, i + 1))
                 agg_pod.append(agg_sw)
-                edge_sw = self.addSwitch('e{}'.format(pod * (k // 2) + i + 1))
+
+                # Edge switch
+                edge_sw = self.addSwitch('e{}_{}'.format(pod, i + 1))
                 edge_pod.append(edge_sw)
-                # Connect aggregation switches to core switches
+
+                # Link aggregation switch to core switches
                 for j in range(k // 2):
-                    self.addLink(agg_sw, core[(i * (k // 2) + j)])
+                    self.addLink(agg_sw, core[i * (k // 2) + j])
+
             agg.append(agg_pod)
             edge.append(edge_pod)
 
-        # Create hosts and connect them to edge switches
+        # Create hosts and link them to edge switches
         for pod in range(k):
             for i in range(k // 2):
                 for j in range(k // 2):
-                    host = self.addHost('h{}'.format(pod * (k // 2) * (k // 2) + i * (k // 2) + j + 1))
+                    # Create a host
+                    host = self.addHost('h{}_{}'.format(pod, i * (k // 2) + j + 1))
+                    # Connect the host to the edge switch
                     self.addLink(host, edge[pod][i])
 
-        # Connect edge switches to aggregation switches
+        # Connect edge switches to aggregation switches within each pod
         for pod in range(k):
             for i in range(k // 2):
                 for j in range(k // 2):
@@ -57,7 +64,7 @@ class FatTreeTopo(Topo):
 def run():
     # Define the IP and port for the ONOS controller
     ONOS_IP = '172.17.0.5'  # Replace with your ONOS controller's IP
-    ONOS_PORT = 6653  # Default port for ONOS OpenFlow
+    ONOS_PORT = 6653  # Default OpenFlow port for ONOS
 
     # Create the FatTree topology and connect it to the ONOS controller
     topo = FatTreeTopo(k=4)
