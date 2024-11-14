@@ -1,82 +1,101 @@
 from mininet.topo import Topo
 from mininet.net import Mininet
-from mininet.node import RemoteController, OVSKernelSwitch, Host
+from mininet.node import RemoteController, OVSKernelSwitch
 from mininet.cli import CLI
-from mininet.link import TCLink
+import logging
 
-class FatTreeTopo(Topo):
-    def __init__(self, k=4):
-        super(FatTreeTopo, self).__init__()
+logging.basicConfig(filename='./fattree.log', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
-        # Ensure k is even, as required by the FatTree topology
-        if k % 2 != 0:
-            raise ValueError("k must be even")
+class FatTree(Topo):
+  
+    CoreSwitchList = []
+    AggSwitchList = []
+    EdgeSwitchList = []
+    HostList = []
+ 
+    def __init__(self, k):
+        "Create Fat Tree topo."
+        self.pod = k
+        self.iCoreLayerSwitch = int((k/2)**2)
+        self.iAggLayerSwitch = int(k*k/2)
+        self.iEdgeLayerSwitch = int(k*k/2)
+        self.density = int(k/2)
+        self.iHost = int(self.iEdgeLayerSwitch * self.density)
+        
+        self.bw_c2a = 0.2
+        self.bw_a2e = 0.1
+        self.bw_h2a = 0.05
 
-        # Number of switches and hosts in each layer
-        core_switches = (k // 2) ** 2
-        agg_switches = (k // 2) * k
-        edge_switches = (k // 2) * k
-        hosts = (k ** 3) // 4
+        # Initialize topology
+        Topo.__init__(self)
+  
+        self.createTopo()
+        logger.debug("Finished topology creation!")
 
-        # Core switches list
-        core = []
-        for i in range(core_switches):
-            core_sw = self.addSwitch('c{}'.format(i + 1), cls=OVSKernelSwitch)
-            core.append(core_sw)
+        self.createLink(bw_c2a=self.bw_c2a, 
+                        bw_a2e=self.bw_a2e, 
+                        bw_h2a=self.bw_h2a)
+        logger.debug("Finished adding links!")
+    
+    def createTopo(self):
+        self.createCoreLayerSwitch(self.iCoreLayerSwitch)
+        self.createAggLayerSwitch(self.iAggLayerSwitch)
+        self.createEdgeLayerSwitch(self.iEdgeLayerSwitch)
+        self.createHost(self.iHost)
 
-        # Create a server at the top connected to each core switch
-        server = self.addHost('server')
-        for core_sw in core:
-            self.addLink(server, core_sw)
+    def _addSwitch(self, number, level, switch_list):
+        for x in range(1, number + 1):
+            PREFIX = str(level) + "00" if x < 10 else str(level) + "0"
+            switch = self.addSwitch('s' + PREFIX + str(x), cls=OVSKernelSwitch, protocols="OpenFlow13")
+            switch_list.append(switch)
 
-        # Aggregation and edge switches in pods
-        agg = []
-        edge = []
-        for pod in range(k):
-            agg_pod = []
-            edge_pod = []
-            for i in range(k // 2):
-                # Aggregation switch
-                agg_sw = self.addSwitch('a{}_{}'.format(pod, i + 1), cls=OVSKernelSwitch)
-                agg_pod.append(agg_sw)
+    def createCoreLayerSwitch(self, NUMBER):
+        logger.debug("Create Core Layer")
+        self._addSwitch(NUMBER, 1, self.CoreSwitchList)
 
-                # Edge switch
-                edge_sw = self.addSwitch('e{}_{}'.format(pod, i + 1), cls=OVSKernelSwitch)
-                edge_pod.append(edge_sw)
+    def createAggLayerSwitch(self, NUMBER):
+        logger.debug("Create Agg Layer")
+        self._addSwitch(NUMBER, 2, self.AggSwitchList)
 
-                # Link aggregation switch to core switches
-                for j in range(k // 2):
-                    self.addLink(agg_sw, core[i * (k // 2) + j])
+    def createEdgeLayerSwitch(self, NUMBER):
+        logger.debug("Create Edge Layer")
+        self._addSwitch(NUMBER, 3, self.EdgeSwitchList)
 
-            agg.append(agg_pod)
-            edge.append(edge_pod)
+    def createHost(self, NUMBER):
+        logger.debug("Create Host")
+        for x in range(1, NUMBER + 1):
+            PREFIX = "h00" if x < 10 else ("h0" if x < 100 else "h")
+            host = self.addHost(PREFIX + str(x))
+            self.HostList.append(host)
 
-        # Create hosts and link them to edge switches
-        for pod in range(k):
-            for i in range(k // 2):
-                for j in range(k // 2):
-                    # Create a host
-                    host = self.addHost('h{}_{}'.format(pod, i * (k // 2) + j + 1))
-                    # Connect the host to the edge switch
-                    self.addLink(host, edge[pod][i])
+    def createLink(self, bw_c2a=0.2, bw_a2e=0.1, bw_h2a=0.5):
+        logger.debug("Add link Core to Agg.")
+        end = int(self.pod / 2)
+        for x in range(0, self.iAggLayerSwitch, end):
+            for i in range(end):
+                for j in range(end):
+                    self.addLink(self.CoreSwitchList[i * end + j], self.AggSwitchList[x + i], bw=bw_c2a)
 
-        # Connect edge switches to aggregation switches within each pod
-        for pod in range(k):
-            for i in range(k // 2):
-                for j in range(k // 2):
-                    self.addLink(edge[pod][i], agg[pod][j])
+        logger.debug("Add link Agg to Edge.")
+        for x in range(0, self.iAggLayerSwitch, end):
+            for i in range(end):
+                for j in range(end):
+                    self.addLink(self.AggSwitchList[x + i], self.EdgeSwitchList[x + j], bw=bw_a2e)
+
+        logger.debug("Add link Edge to Host.")
+        for x in range(self.iEdgeLayerSwitch):
+            for i in range(self.density):
+                self.addLink(self.EdgeSwitchList[x], self.HostList[self.density * x + i], bw=bw_h2a)
 
 def run():
-    # Define the IP and port for the ONOS controller
-    ONOS_IP = '172.17.0.5'  # Replace with your ONOS controller's IP
-    ONOS_PORT = 6653  # Default OpenFlow port for ONOS
+    ONOS_IP = '172.17.0.5'  # Replace with your ONOS controller IP
+    ONOS_PORT = 6653       # ONOS OpenFlow port
 
-    # Create the FatTree topology and connect it to the ONOS controller
-    topo = FatTreeTopo(k=4)
+    topo = FatTree(k=4)  # Adjust k value as needed
     onos_controller = RemoteController('onos', ip=ONOS_IP, port=ONOS_PORT)
-    net = Mininet(topo=topo, controller=onos_controller, switch=OVSKernelSwitch, link=TCLink)
+    net = Mininet(topo=topo, controller=onos_controller, switch=OVSKernelSwitch, autoSetMacs=True)
 
-    # Start the network
     net.start()
     CLI(net)
     net.stop()
