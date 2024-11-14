@@ -1,6 +1,6 @@
 from mininet.topo import Topo
 from mininet.net import Mininet
-from mininet.node import RemoteController, OVSKernelSwitch
+from mininet.node import RemoteController, OVSKernelSwitch, Host
 from mininet.cli import CLI
 from mininet.link import TCLink
 
@@ -21,8 +21,13 @@ class FatTreeTopo(Topo):
         # Core switches list
         core = []
         for i in range(core_switches):
-            core_sw = self.addSwitch('c{}'.format(i + 1))
+            core_sw = self.addSwitch('c{}'.format(i + 1), cls=OVSKernelSwitch)
             core.append(core_sw)
+
+        # Create a server at the top connected to each core switch
+        server = self.addHost('server')
+        for core_sw in core:
+            self.addLink(server, core_sw)
 
         # Aggregation and edge switches in pods
         agg = []
@@ -32,11 +37,11 @@ class FatTreeTopo(Topo):
             edge_pod = []
             for i in range(k // 2):
                 # Aggregation switch
-                agg_sw = self.addSwitch('a{}_{}'.format(pod, i + 1))
+                agg_sw = self.addSwitch('a{}_{}'.format(pod, i + 1), cls=OVSKernelSwitch)
                 agg_pod.append(agg_sw)
 
                 # Edge switch
-                edge_sw = self.addSwitch('e{}_{}'.format(pod, i + 1))
+                edge_sw = self.addSwitch('e{}_{}'.format(pod, i + 1), cls=OVSKernelSwitch)
                 edge_pod.append(edge_sw)
 
                 # Link aggregation switch to core switches
