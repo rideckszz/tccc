@@ -21,7 +21,7 @@ class FatTreeTopo(Topo):
         # Create core layer switches
         core = []
         for i in range(core_switches):
-            core_sw = self.addSwitch(f'c{i + 1}')
+            core_sw = self.addSwitch('c{}'.format(i + 1))
             core.append(core_sw)
 
         # Create aggregation and edge layer switches
@@ -31,9 +31,9 @@ class FatTreeTopo(Topo):
             agg_pod = []
             edge_pod = []
             for i in range(k // 2):
-                agg_sw = self.addSwitch(f'a{pod * (k // 2) + i + 1}')
+                agg_sw = self.addSwitch('a{}'.format(pod * (k // 2) + i + 1))
                 agg_pod.append(agg_sw)
-                edge_sw = self.addSwitch(f'e{pod * (k // 2) + i + 1}')
+                edge_sw = self.addSwitch('e{}'.format(pod * (k // 2) + i + 1))
                 edge_pod.append(edge_sw)
                 # Connect aggregation switches to core switches
                 for j in range(k // 2):
@@ -45,7 +45,7 @@ class FatTreeTopo(Topo):
         for pod in range(k):
             for i in range(k // 2):
                 for j in range(k // 2):
-                    host = self.addHost(f'h{pod * (k // 2) * (k // 2) + i * (k // 2) + j + 1}')
+                    host = self.addHost('h{}'.format(pod * (k // 2) * (k // 2) + i * (k // 2) + j + 1))
                     self.addLink(host, edge[pod][i])
 
         # Connect edge switches to aggregation switches
