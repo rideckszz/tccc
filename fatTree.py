@@ -31,35 +31,8 @@ class FatTree(Topo):
         logger.debug("Finished topology creation!")
 
         self.createLink()
-        self.positionNodes()
-        logger.debug("Finished adding links and positioning nodes!")
-
-    def positionNodes(self):
-        # Set core switches at the top
-        y_core = 100
-        x_spacing = 100
-        for i, switch in enumerate(self.CoreSwitchList):
-            x_position = (i + 1) * x_spacing
-            self.setNodePosition(switch, x_position, y_core)
-        
-        # Set aggregation switches below core
-        y_agg = 200
-        for i, switch in enumerate(self.AggSwitchList):
-            x_position = (i + 1) * x_spacing
-            self.setNodePosition(switch, x_position, y_agg)
-
-        # Set edge switches below aggregation
-        y_edge = 300
-        for i, switch in enumerate(self.EdgeSwitchList):
-            x_position = (i + 1) * x_spacing
-            self.setNodePosition(switch, x_position, y_edge)
-
-        # Set hosts below edge switches
-        y_host = 400
-        for i, host in enumerate(self.HostList):
-            x_position = (i + 1) * x_spacing
-            self.setNodePosition(host, x_position, y_host)
-
+        logger.debug("Finished adding links!")
+    
     def createTopo(self):
         self.createCoreLayerSwitch(self.iCoreLayerSwitch)
         self.createAggLayerSwitch(self.iAggLayerSwitch)
